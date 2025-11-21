@@ -111,14 +111,14 @@ export async function GET(
 
   // ===== FINAL RETURN (PURE SVG, NO DIV) =====
   return new Response(
-    `
-<svg width="${totalWidth * 2}" height="${SVG_HEIGHT}"
-     viewBox="0 0 ${totalWidth * 2} ${SVG_HEIGHT}"
+  `
+<svg width="100%" height="100"
+     viewBox="0 0 ${totalWidth} ${SVG_HEIGHT}"
      xmlns="http://www.w3.org/2000/svg"
-     preserveAspectRatio="xMinYMin">
+     preserveAspectRatio="xMinYMin slice">
   <g>
     ${parts.join("")}
-    ${parts.join("")} <!-- Duplicate once for infinite loop -->
+    ${parts.join("")}
     <animateTransform 
       attributeName="transform"
       type="translate"
@@ -131,6 +131,7 @@ export async function GET(
   </g>
 </svg>
   `,
-    { headers: { "Content-Type": "image/svg+xml" } }
-  );
+  { headers: { "Content-Type": "image/svg+xml" } }
+);
+
 }
