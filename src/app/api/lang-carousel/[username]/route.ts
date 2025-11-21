@@ -1,9 +1,10 @@
 import { icons } from "@/utils/langIcons";
 
+export const dynamic = "force-dynamic"; // Prevent static build issues on Vercel
+
 const MIN_BYTES = 5000; // Minimum bytes threshold
 const RECT_MIN_WIDTH = 55; // Minimum width for unknown langs
 const SVG_HEIGHT = 55;
-const VIEWPORT_WIDTH = 600; // Fixed carousel width
 const GAP = 15; // Equal spacing between items
 
 // GitHub-friendly random colors
@@ -25,8 +26,9 @@ export async function GET(
   const reposRes = await fetch(`https://api.github.com/users/${username}/repos`, {
     headers: {
       "User-Agent": "Mozilla/5.0",
-      Authorization: process.env.GITHUB_TOKEN ? `token ${process.env.GITHUB_TOKEN}` : "",
+      Authorization: process.env.GITHUB_TOKEN ? `Bearer ${process.env.GITHUB_TOKEN}` : "",
     },
+    next: { revalidate: 0 }
   });
 
   if (!reposRes.ok)
@@ -47,8 +49,9 @@ export async function GET(
       const langRes = await fetch(repo.languages_url, {
         headers: {
           "User-Agent": "Mozilla/5.0",
-          Authorization: process.env.GITHUB_TOKEN ? `token ${process.env.GITHUB_TOKEN}` : "",
+          Authorization: process.env.GITHUB_TOKEN ? `Bearer ${process.env.GITHUB_TOKEN}` : "",
         },
+        next: { revalidate: 0 }
       });
 
       if (!langRes.ok) return;
@@ -83,7 +86,7 @@ export async function GET(
   let x = 0;
   let parts: string[] = [];
 
-  // ========== Known icons ==========
+  // ===== Known icons =====
   for (const lang of known) {
     parts.push(`
       <g transform="translate(${x},0)">
@@ -93,7 +96,7 @@ export async function GET(
     x += 60 + GAP;
   }
 
-  // ========== Unknown language tags ==========
+  // ===== Unknown language tags =====
   for (const lang of unknown) {
     const color = COLORS[Math.floor(Math.random() * COLORS.length)];
     const width = calcWidth(lang);
@@ -106,33 +109,28 @@ export async function GET(
     x += width + GAP;
   }
 
-  // ========== FINAL RETURN (HTML + SVG) ==========
+  // ===== FINAL RETURN (PURE SVG, NO DIV) =====
   return new Response(
     `
-  <div style="width:${VIEWPORT_WIDTH}px; overflow:hidden; display:inline-block; white-space:nowrap;">
-    <svg width="${totalWidth * 2}" height="${SVG_HEIGHT}"
-         viewBox="0 0 ${totalWidth * 2} ${SVG_HEIGHT}"
-         xmlns="http://www.w3.org/2000/svg"
-         preserveAspectRatio="xMinYMin">
-
-      <g>
-        ${parts.join("")}
-        ${parts.join("")} <!-- Duplicate ONCE for infinite looping -->
-
-        <animateTransform 
-          attributeName="transform"
-          type="translate"
-          dur="${duration}s"
-          repeatCount="indefinite"
-          keyTimes="0;1"
-          values="0,0; -${totalWidth},0"
-          calcMode="linear"
-        />
-      </g>
-
-    </svg>
-  </div>
+<svg width="${totalWidth * 2}" height="${SVG_HEIGHT}"
+     viewBox="0 0 ${totalWidth * 2} ${SVG_HEIGHT}"
+     xmlns="http://www.w3.org/2000/svg"
+     preserveAspectRatio="xMinYMin">
+  <g>
+    ${parts.join("")}
+    ${parts.join("")} <!-- Duplicate once for infinite loop -->
+    <animateTransform 
+      attributeName="transform"
+      type="translate"
+      dur="${duration}s"
+      repeatCount="indefinite"
+      keyTimes="0;1"
+      values="0,0; -${totalWidth},0"
+      calcMode="linear"
+    />
+  </g>
+</svg>
   `,
-    { headers: { "Content-Type": "text/html" } }
+    { headers: { "Content-Type": "image/svg+xml" } }
   );
 }
