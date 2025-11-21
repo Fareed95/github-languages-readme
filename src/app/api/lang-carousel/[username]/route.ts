@@ -1,18 +1,20 @@
 import { icons } from "@/utils/langIcons";
 
-export const dynamic = "force-dynamic"; // Prevent static build issues on Vercel
+export const dynamic = "force-dynamic"; // Prevent static build issues
 
-const MIN_BYTES = 5000; // Minimum bytes threshold
-const RECT_MIN_WIDTH = 55; // Minimum width for unknown langs
-const SVG_HEIGHT = 55;
-const GAP = 15; // Equal spacing between items
+// ===== XXL SIZE SETTINGS =====
+const MIN_BYTES = 5000;
+const RECT_MIN_WIDTH = 180;       // Larger badge width
+const SVG_HEIGHT = 160;           // XXL height
+const GAP = 40;                   // Bigger spacing
+const ICON_SIZE = 140;            // XXL icon size
 
 // GitHub-friendly random colors
 const COLORS = ["#1abc9c", "#e67e22", "#9b59b6", "#3498db", "#e74c3c", "#f1c40f"];
 
 // Dynamic width calculator for unknown text
 function calcWidth(name: string) {
-  const estimated = name.length * 8 + 22; // 8px per char + padding
+  const estimated = name.length * 22 + 50; // XXL width calculation
   return Math.max(RECT_MIN_WIDTH, estimated);
 }
 
@@ -22,13 +24,13 @@ export async function GET(
 ) {
   const { username } = await context.params;
 
-  // Fetch repos
+  // ===== Fetch repos =====
   const reposRes = await fetch(`https://api.github.com/users/${username}/repos`, {
     headers: {
       "User-Agent": "Mozilla/5.0",
       Authorization: process.env.GITHUB_TOKEN ? `Bearer ${process.env.GITHUB_TOKEN}` : "",
     },
-    next: { revalidate: 0 }
+    next: { revalidate: 0 },
   });
 
   if (!reposRes.ok)
@@ -39,7 +41,7 @@ export async function GET(
   const repos = await reposRes.json();
   if (!Array.isArray(repos)) return new Response("Invalid GitHub Username", { status: 404 });
 
-  // Language totals
+  // ===== Language totals =====
   const langTotals: Record<string, number> = {};
 
   await Promise.all(
@@ -51,7 +53,7 @@ export async function GET(
           "User-Agent": "Mozilla/5.0",
           Authorization: process.env.GITHUB_TOKEN ? `Bearer ${process.env.GITHUB_TOKEN}` : "",
         },
-        next: { revalidate: 0 }
+        next: { revalidate: 0 },
       });
 
       if (!langRes.ok) return;
@@ -62,7 +64,6 @@ export async function GET(
     })
   );
 
-  // Filter big languages
   const frequentLangs = Object.entries(langTotals)
     .filter(([, total]) => (total as number) >= MIN_BYTES)
     .map(([lang]) => lang);
@@ -70,55 +71,59 @@ export async function GET(
   if (!frequentLangs.length)
     return new Response("No languages above threshold.", { status: 404 });
 
-  // Separate known & unknown icons
+  // ===== Separate known & unknown icons =====
   const known = frequentLangs.filter((l) => icons[l]);
   const unknown = frequentLangs.filter((l) => !icons[l]);
 
-  // Calculate totalWidth dynamically (with spacing)
+  // ===== Calculate total width =====
   let totalWidth = 0;
-  for (const lang of known) totalWidth += 60 + GAP; // icons always 55px + 5px padding
+  for (const lang of known) totalWidth += ICON_SIZE + GAP;
   for (const lang of unknown) totalWidth += calcWidth(lang) + GAP;
 
-  // Scrolling duration
-  const duration = Math.max(12, frequentLangs.length * 0.9);
+  const duration = Math.max(16, frequentLangs.length * 1.4);
 
-  // Build SVG blocks
+  // ===== Build SVG blocks =====
   let x = 0;
   let parts: string[] = [];
 
-  // ===== Known icons =====
+  // Known Icons
   for (const lang of known) {
     parts.push(`
-      <g transform="translate(${x},0)">
-        <image href="${icons[lang]}" width="55" height="55" />
+      <g transform="translate(${x},10)">
+        <image href="${icons[lang]}" width="${ICON_SIZE}" height="${ICON_SIZE}" />
       </g>
     `);
-    x += 60 + GAP;
+    x += ICON_SIZE + GAP;
   }
 
-  // ===== Unknown language tags =====
+  // Unknown badges
   for (const lang of unknown) {
     const color = COLORS[Math.floor(Math.random() * COLORS.length)];
     const width = calcWidth(lang);
+
     parts.push(`
-      <g transform="translate(${x},0)">
-        <rect rx="10" ry="10" width="${width}" height="55" fill="${color}" />
-        <text x="${width / 2}" y="32" text-anchor="middle" font-size="11" fill="white" font-weight="bold">${lang}</text>
+      <g transform="translate(${x},10)">
+        <rect rx="24" ry="24" width="${width}" height="${ICON_SIZE}" fill="${color}" />
+        <text x="${width / 2}" y="${ICON_SIZE / 1.55}"
+          text-anchor="middle" font-size="32" fill="white" font-weight="bold">${lang}</text>
       </g>
     `);
+
     x += width + GAP;
   }
 
-  // ===== FINAL RETURN (PURE SVG, NO DIV) =====
+  // ===== FINAL SVG RETURN =====
   return new Response(
-  `
-<svg width="100%" height="100"
-     viewBox="0 0 ${totalWidth} ${SVG_HEIGHT}"
-     xmlns="http://www.w3.org/2000/svg"
-     preserveAspectRatio="xMinYMin slice">
+    `
+<svg width="100%" height="${SVG_HEIGHT}"
+  viewBox="0 0 ${totalWidth} ${SVG_HEIGHT}"
+  xmlns="http://www.w3.org/2000/svg"
+  preserveAspectRatio="xMidYMid meet">
+
   <g>
     ${parts.join("")}
     ${parts.join("")}
+
     <animateTransform 
       attributeName="transform"
       type="translate"
@@ -131,7 +136,6 @@ export async function GET(
   </g>
 </svg>
   `,
-  { headers: { "Content-Type": "image/svg+xml" } }
-);
-
+    { headers: { "Content-Type": "image/svg+xml" } }
+  );
 }
